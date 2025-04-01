@@ -1,0 +1,25 @@
+---
+name: clear cache
+
+on:
+  schedule:
+    - cron: "00 12 * * *"
+
+  workflow_dispatch:
+
+Jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: clear cache
+        run: |
+          CACHE_COUNT=$(gh cache list --repo ${{ github.repository }} | wc -l)
+          if [[ "$CACHE_COUNT" -gt 0 ]]; then
+            gh cache delete --all --repo ${{ github.repository }}
+            echo "Cache cleared"
+          else
+            echo "No cache found, skipping deletion."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_CACHE_TOKEN }}
+          

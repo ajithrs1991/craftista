@@ -1,0 +1,6 @@
+---
+- name: Restart jenkins
+  ansible.builtin.service: 
+    name: jenkins
+    state: restart
+  tags: jenkins_restart

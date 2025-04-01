@@ -1,0 +1,44 @@
+---
+- name: Install Jenkins
+  hosts: jenkins_server
+  become: true
+  
+  tasks:
+    - name: Check if the repository for jenkins persists
+      ansible.builtin.stat: 
+        path: "{{ jenkins_repo_file }}"
+        register: jenkins_repo_file_status
+      tags:
+        - jenkins_install
+
+    - name: Download and install the Jenkins key
+      ansible.builtin.get_url: 
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+        mode: '0644'
+      tags: 
+        - jenkins_install
+      when: jenkins_repo_file_status.stat.exists == False
+
+    - name: Add Jenkins repository to Apt sources
+      ansible.builtin.apt_repository: 
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian binary"
+        filename: jenkins
+      when: jenkins_repo_file_status.stat.exists == Fals
+      notify: Restart jenkins
+      tags:
+        - jenkins_install
+
+    - name: Update Apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+      tags:
+        - jenkins_install
+
+    - name: Install jenkins in the server
+      ansible.builtin.apt:
+        name: jenkins
+        state: present
+      notify: Restart jenkins
+      tags:
+        - jenkins_install
