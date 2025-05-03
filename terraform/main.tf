@@ -1,101 +1,82 @@
-ansible/
-├── playbooks/
-│   └── deploy_nginx.yml             # Common playbook for all environments
-├── inventory/
-│   ├── dev_inventory.ini           # Inventory for Dev Environment
-│   ├── staging_inventory.ini       # Inventory for Staging Environment
-│   └── prod_inventory.ini          # Inventory for Prod Environment
-├── roles/
-│   └── nginx-docker-deploy/        # Role for deploying NGINX in Docker
-│       ├── defaults/
-│       │   └── main.yml            # Default variables for the role
-│       ├── vars/
-│       │   └── main.yml            # Main environment-specific variables
-│       ├── tasks/
-│       │   └── main.yml            # Main tasks for the role
-│       ├── templates/
-│       │   └── nginx.conf.j2       # NGINX config template
-│       ├── handlers/
-│       │   └── main.yml            # Handlers for restarting NGINX container
-│       └── meta/
-│           └── main.yml            # Metadata for the role
-├── group_vars/
-│   ├── dev.yml                     # Dev variables for shared environment-specific configurations
-│   ├── staging.yml                 # Staging variables for shared environment-specific configurations
-│   └── prod.yml                    # Prod variables for shared environment-specific configurations
-├── project_vars/
-│   ├── project1.yml                # Project1-specific variables
-│   ├── project2.yml                # Project2-specific variables
-└── requirements.yml                # External role dependencies (if any)
+# Azure provider configuration
+provider "azurerm" {
+  features {}
+}
 
+# Define the Resource Group
+resource "azurerm_resource_group" "example" {
+  name     = var.resource_group_name
+  location = var.location
+}
 
----
-- name: Deploy NGINX Docker Container
-  hosts: all
-  become: true
-  vars_files:
-    - group_vars/{{ ansible_environment }}.yml    # This loads environment-specific variables (dev, staging, prod)
-    - project_vars/{{ project_name }}.yml         # This loads project-specific variables (project1, project2)
-  roles:
-    - nginx-docker-deploy
+# Define the Virtual Network
+resource "azurerm_virtual_network" "example" {
+  name                = "example-vnet"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+  address_space       = ["10.0.0.0/16"]
+}
 
-pipeline {
-    agent any
+# Define the Subnet
+resource "azurerm_subnet" "example" {
+  name                 = "example-subnet"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
 
-    environment {
-        TF_VAR_project = 'example-project'
-        TF_VAR_region = 'us-west-2'
-    }
+# Define the Public IP
+resource "azurerm_public_ip" "example" {
+  name                = "example-public-ip"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+  allocation_method   = "Static"
+}
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git 'https://github.com/your-repo/terraform.git'
-            }
-        }
+# Define the Network Interface
+resource "azurerm_network_interface" "example" {
+  name                = "example-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
-        stage('Init Terraform') {
-            steps {
-                script {
-                    sh 'terraform init'
-                }
-            }
-        }
+  ip_configuration {
+    name                          = "example-ipconfig"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
 
-        stage('Plan Terraform') {
-            steps {
-                script {
-                    sh 'terraform plan -out=tfplan'
-                }
-            }
-        }
+# Define the Virtual Machine
+resource "azurerm_virtual_machine" "example" {
+  name                  = "example-vm"
+  location              = azurerm_resource_group.example.location
+  resource_group_name   = azurerm_resource_group.example.name
+  network_interface_ids = [azurerm_network_interface.example.id]
+  size                  = "Standard_B1s"  # You can choose the size that fits your need
 
-        stage('Apply Terraform') {
-            steps {
-                script {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
+  os_profile {
+    computer_name  = "example-vm"
+    admin_username = var.admin_username
+    admin_password = var.admin_password
+  }
 
-        stage('Destroy Terraform (Optional)') {
-            when {
-                branch 'master'
-            }
-            steps {
-                script {
-                    sh 'terraform destroy -auto-approve'
-                }
-            }
-        }
-    }
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
 
-    post {
-        success {
-            echo 'Terraform deployment was successful!'
-        }
-        failure {
-            echo 'Terraform deployment failed.'
-        }
-    }
+  storage_os_disk {
+    name              = "example-os-disk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed           = true
+    disk_size_gb      = 30
+  }
+
+  storage_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "20.04-LTS"
+    version   = "latest"
+  }
 }

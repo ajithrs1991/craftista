@@ -4,6 +4,17 @@
   become: true
   
   tasks:
+    - name: Install the dependencies for jenkins installation
+      ansible.builin.apt:
+        name: 
+          - "{{ java_package }}"
+          - "curl"
+          - "gnupg"
+          - "wget
+        state: present
+        update_cache: yes 
+      tags: jenkins_install
+
     - name: Check if the repository for jenkins persists
       ansible.builtin.stat: 
         path: "{{ jenkins_repo_file }}"
